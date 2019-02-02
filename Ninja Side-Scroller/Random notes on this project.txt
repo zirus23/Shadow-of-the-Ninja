@@ -1,0 +1,266 @@
+PRIOTRITIES:
+1. game over and retry screen, win screen - 2 hours
+ (same as load screen with scroll and font)
+2. main game load screen same as above - 1 hour
+
+3. bg gen incorporated to maingame (with mountains) - 5 hours
+
+4. finish level gen and implement A* - 5 hours
+
+5. VIDEO - 3 hours
+
+7. Parallax scrolling and grass - 4 hours
+
+8. SAVE MOUNTAINS AND TREES BASED ON SEEDS
+9. RANDOM GENERATION BEGINS WITH CHOOSING A RANDOM SEED AND SAVING IT AS AN ATTRIBUTE OF THE INSTANCE
+
+
+
+
+
+
+
+
+
+
+
+spike locations in a set to check for death collisions
+
+Generate two dots at x,y of hero. They stay for a set time before disappearing
+
+A lot of of new dots keep being generated and destroyed constantly
+
+The distance between the dots loops between 0 to 1 cm back and forth with small dx's
+
+give the ninja arashi trail effect
+
+end = 3:18
+
+
+
+
+
+save and load interface required
+
+walls with different sides jagged and rotated to only have exposed ground be jagged
+
+# a* relative difficulty rating based on number of maneuvers (stored in cache eacht time) (start at 3 stars)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Try island loading algorithm to draw cells
+
+upFree, downFree, leftFree, rightFree = F, F, F, F
+
+if up = 0: upFree = True and so on..
+
+if upFree and downFree and leftFree and rightFree: vertical jagged wall
+
+elif upFree and downFree: vertical jagged wall
+
+elif leftFree and rightFree: 90 rotated vert jagged wall
+
+if only upFree: top jagged wall
+
+
+so on....
+find fast algorithm to solve this
+probably change base 2d list to advanced 2d list and then draw advanced 2d list only
+rather than checking with each draw
+
+
+
+
+
+
+
+
+ntMAP Editor Instructions:
+
+Click icon to select object
+To draw object at single cell, double click on cell
+To draw over area, click one cell, and then hover to see selected area. Clicking again will draw all over selected area
+Selecting the Cross will delete all items in highlighted area
+Also, deleting a single cell can be done by hovering mouse over it and pressing delete/backspace on keyboard
+
+Click cancel to go back to main game
+click save to save game to fil
+click auto-complete to make level playable
+
+player dies if to bottom of screen or touches spikes
+
+player can destroy spikes by throwing shurikens
+
+
+
+
+
+import random
+import pathfinding
+
+# return filled board for map gen
+
+def autoCompleteMap(board):
+    original = board
+    # fill with base
+    for col in range(len(board[0])):
+        prev = board[-2][col]
+        board[-2][col] = 1
+    # generate uneven ground
+    board = genFloor(board)
+    board = genGap(board)
+    board = placeSpikes(board)
+    # gen hills (maybe not required at all)
+    # add random of select few readymade presets ( like spike valleys with floats)
+    # spike valleys in long enough equal height areas with height < 3 (set height to 1 and place spikes and floaters)
+    # check a* (if true, continue. Else restart from top with empty board)
+    # place roofs (if cave = True)
+    # fix floors (if there are any blocks with nothing under them, make them floors and vice versa for floors with stuff under them. Also 
+    # gen floating platforms (if cave = False) (careful of blocking)
+    # gen decorations (don't call, just write in this file)
+    # (only grass for now)
+    if not isLegal(board):
+        board = autoCompleteMap(original) # repeats until legal map is created
+    return board
+
+# DETOUR METHOD
+def genFloor(board, detour = 4, spread = 5, rFactor = 1):
+    # input detour (vert height range (+- randomness factor))
+    # spread is blocks per iteration (+- randomness factor)
+    # choose random height in range for first few blocks (no gaps or vert blocks)
+    # for next set choose same random range but centered at height of first
+    # delete entire vertical cols in sets spread randomly across
+    
+    prevHeight = 0
+    endBound = (1280*5)//50 - 1 #127
+    # steps with spread
+    for i in range(0, len(board[0]), spread): # fix step (should be step + r)
+        groupSize = spread
+        # + random.randint(-rFactor, rFactor)
+        detourRandom = random.randint(-rFactor, rFactor)
+        placementHeight = prevHeight + random.choice([1,-1])*random.randint(0, detour + detourRandom)
+        # height checks
+        if placementHeight > 11:
+            placementHeight = 9
+        elif placementHeight < 2:
+            placementHeight = 2
+        # set new height as prev height
+        prevHeight = placementHeight
+        for row in range(2, placementHeight):
+            for col in range(i, i + groupSize):
+                # end bound check
+                if col < endBound:
+                    board[len(board) - row - 1][col] = 2 # key for wall    
+    return board
+
+def genGap(board, minGaps = 2, maxGaps = 4, maxWidth = 6):
+    numGaps = 0
+    # generates 3-wide gaps as a way of fixing weird looking single block gaps
+    row = len(board) - 3
+    # no gaps near start or end so +-10
+    while numGaps < minGaps:
+        col = random.randint(10, len(board[0]) - 10)
+        numGaps += 1
+        gapWidth = random.randint(3, maxWidth)
+        for i in range(gapWidth):
+            for r in range(len(board)):
+                board[r][col+i] = 0 # none
+            if gapWidth < 5:
+                board[-1][col+i] = 3 # spikes
+    return board
+
+def placeSpikes(board, minClusters = 2, maxClusters = 7):
+    numClusters = random.randint(minClusters, maxClusters)
+    clustersPlaced = 0
+    spaceAvailable = True
+    for row in range(4, len(board)):
+        for col in range(10, len(board) - 10):
+            clusterSize = random.randint(3, 8)
+            for i in range(clusterSize):
+                if not (board[row-1][col+i] == 0 and board[row][col+i] != 0):
+                    spaceAvailable = False
+            if spaceAvailable:
+                clustersPlaced += 1
+                if clustersPlaced > numClusters:
+                    return board
+                for i in range(clusterSize):
+                    board[row-1][col+i] = 3 # spikes
+    return board
+
+def genHill(rows, cols):
+    # ISLAND METHOD ( not needed for now)
+    # note: maybe incorporate to form islands where there are flatlands in map
+    # note: don't do above, else no place for spikes
+    # called multiple times to make entire floor
+    
+    # fill bottom layer
+    # for every block there's a chance of a 1 being above it
+    # recursion depth detourmines how "filled" the island is
+    # don't want holes so 
+    
+    # 1 0 1 0 1 0
+    # 1 1 0 1 0 1
+    # 1 1 1 1 1 1 
+    # returns 2d list of rows x cols board
+    pass
+        
+# Description of autocomplete's working
+# Steps:
+# 1. Generate floor terrain with ups and downs and gaps (island based creation)
+# 1.5 Specific preset patterns to make it look good (implemented algorithmically)
+# 2. Generate random spikes with A* checks for playability(single but higher jump)
+# 3. top off with roof and background elements like trees, mountains and checkpoints (3 per level split by a* steps)
+# 4. add gun enemies in remaining (long enough) flat areas (10~ blocks)
+# 5. Be able to shoot enemies
+# 6. Decorate parts with grass and mud surrounding the interactive blocks
+
+
+def isLegal(board):
+    # starts at 4th col, with row based on gHeight
+    colStart = 4
+    colGoal = -5
+    start = None
+    goal = None
+    for row in range(len(board)):
+        if start is None:
+            if board[row][colStart] != 0:
+                start = (row-1, colStart) #first point of collision
+        if goal is None:
+            if board[row][colGoal] != 0:
+                goal = (row-1, colGoal)
+    
+    graph = pathfinding.Graph(board)
+
+    path = pathfinding.aStarSearch(graph, start, goal)
+    
+    if path is not None:
+        return True
+    else:
+        return False
+
+def genAdvancedMap(board):
+    return board
+
+
+
+
+
+
+
